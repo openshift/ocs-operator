@@ -33,8 +33,12 @@ func (obj *ocsCephObjectStores) ensureCreated(r *StorageClusterReconciler, insta
 		if err != nil {
 			return err
 		}
-		r.Log.Info(fmt.Sprintf("not creating a CephObjectStore because the platform is '%s'", platform))
-		return nil
+		if reconcileStrategy == ReconcileStrategyForce {
+			r.Log.Info("force creating a CephObjectStore")
+		} else {
+			r.Log.Info(fmt.Sprintf("not creating a CephObjectStore because the platform is '%s'", platform))
+			return nil
+		}
 	}
 
 	cephObjectStores, err := r.newCephObjectStoreInstances(instance)
