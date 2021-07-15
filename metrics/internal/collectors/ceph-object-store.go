@@ -14,8 +14,6 @@ import (
 )
 
 const (
-	// name of the project/exporter
-	namespace = "ocs"
 	// component within the project/exporter
 	subsystem = "rgw"
 )
