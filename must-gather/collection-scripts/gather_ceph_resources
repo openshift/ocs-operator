@@ -1,6 +1,6 @@
 #!/bin/bash
 
-gather_common_ceph_resources "${BASE_COLLECTION_PATH}" "${SINCE_TIME}"
+gather_common_ceph_resources "$1" "$2"
 
 # Expect base collection path as an argument
 BASE_COLLECTION_PATH=$1
