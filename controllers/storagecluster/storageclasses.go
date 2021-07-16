@@ -6,6 +6,8 @@ import (
 	"reflect"
 
 	ocsv1 "github.com/openshift/ocs-operator/api/v1"
+	"github.com/openshift/ocs-operator/controllers/util"
+	cephv1 "github.com/rook/rook/pkg/apis/ceph.rook.io/v1"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -29,6 +31,44 @@ func (obj *ocsStorageClass) ensureCreated(r *StorageClusterReconciler, instance 
 	scs, err := r.newStorageClassConfigurations(instance)
 	if err != nil {
 		return err
+	}
+
+	if !instance.Spec.ManagedResources.CephBlockPools.DisableStorageClass {
+		// wait for CephBlockPool to be ready
+		cephBlockPool := cephv1.CephBlockPool{}
+		key := types.NamespacedName{Name: generateNameForCephBlockPool(instance), Namespace: instance.Namespace}
+		r.Log.Info("Waiting for CephBlockPool %q to be ready before creating storage class.", key)
+		err = r.Client.Get(context.TODO(), key, &cephBlockPool)
+		if err != nil {
+			r.Log.Info("Error while waiting for CephBlockPool %q.", key, "Error:", err)
+			return err
+		}
+		if cephBlockPool.Status == nil {
+			return fmt.Errorf("cephBlockPool %q is not reporting status", key)
+		}
+		r.Log.Info("CephBlockPool %q is in phase %q", key, cephBlockPool.Status.Phase)
+		if cephBlockPool.Status.Phase != cephv1.ConditionType(util.PhaseReady) {
+			return fmt.Errorf("cephBlockPool %q is not %q", key, util.PhaseReady)
+		}
+	}
+
+	if !instance.Spec.ManagedResources.CephFilesystems.DisableStorageClass {
+		// wait for CephFilesystem to be ready
+		cephFilesystem := cephv1.CephFilesystem{}
+		key := types.NamespacedName{Name: generateNameForCephFilesystem(instance), Namespace: instance.Namespace}
+		r.Log.Info("Waiting for CephFilesystem %q to be ready before creating storage class.", key)
+		err = r.Client.Get(context.TODO(), key, &cephFilesystem)
+		if err != nil {
+			r.Log.Info("Error while waiting for CephFilesystem %q.", key, "Error:", err)
+			return err
+		}
+		if cephFilesystem.Status == nil {
+			return fmt.Errorf("cephFilesystem %q is not reporting status", key)
+		}
+		r.Log.Info("CephFilesystem %q is in phase %q", key, cephFilesystem.Status.Phase)
+		if cephFilesystem.Status.Phase != util.PhaseReady {
+			return fmt.Errorf("cephFilesystem %q is not %q", key, util.PhaseReady)
+		}
 	}
 
 	err = r.createStorageClasses(scs)
