@@ -375,7 +375,7 @@ func TestThrottleStorageDevices(t *testing.T) {
 				},
 				Provisioner: string(AzureDisk),
 				Parameters: map[string]string{
-					"type": "managed-premium",
+					"storageaccounttype": "Premium_LRS",
 				},
 			},
 			deviceSets: []api.StorageDeviceSet{
