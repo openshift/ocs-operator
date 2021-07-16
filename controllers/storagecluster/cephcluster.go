@@ -301,9 +301,7 @@ func newCephCluster(sc *ocsv1.StorageCluster, cephImage string, nodeCount int, s
 				ManageMachineDisruptionBudgets:   false,
 				MachineDisruptionBudgetNamespace: "openshift-machine-api",
 			},
-			Network: cephv1.NetworkSpec{
-				HostNetwork: sc.Spec.HostNetwork,
-			},
+			Network: getNetworkSpec(*sc),
 			Dashboard: cephv1.DashboardSpec{
 				Enabled: sc.Spec.ManagedResources.CephDashboard.Enable,
 				SSL:     sc.Spec.ManagedResources.CephDashboard.SSL,
@@ -360,9 +358,7 @@ func newCephCluster(sc *ocsv1.StorageCluster, cephImage string, nodeCount int, s
 	} else {
 		reqLogger.Info("No monDataDirHostPath, monPVCTemplate or storageDeviceSets configured for StorageCluster.", "StorageCluster", klog.KRef(sc.Namespace, sc.Name))
 	}
-	if isMultus(sc.Spec.Network) {
-		cephCluster.Spec.Network.NetworkSpec = *sc.Spec.Network
-	}
+
 	// if kmsConfig is not 'nil', add the KMS details to CephCluster spec
 	if kmsConfigMap != nil {
 		cephCluster.Spec.Security.KeyManagementService.ConnectionDetails = kmsConfigMap.Data
@@ -371,7 +367,7 @@ func newCephCluster(sc *ocsv1.StorageCluster, cephImage string, nodeCount int, s
 	return cephCluster
 }
 
-func isMultus(nwSpec *rook.NetworkSpec) bool {
+func isMultus(nwSpec *cephv1.NetworkSpec) bool {
 	if nwSpec != nil {
 		return nwSpec.IsMultus()
 	}
@@ -387,10 +383,24 @@ func validateMultusSelectors(selectors map[string]string) error {
 	if publicNetwork == "" && clusterNetwork == "" {
 		return fmt.Errorf("both public and cluster network selector values can't be empty")
 	}
-	if publicNetwork == "" {
-		return fmt.Errorf("public network selector values can't be empty")
-	}
 	return nil
+}
+
+// getNetworkSpec returns cephv1.NetworkSpec after reconciling the
+// storageCluster.Spec.HostNetwork and storageCluster.Spec.Network fields
+func getNetworkSpec(sc ocsv1.StorageCluster) cephv1.NetworkSpec {
+	// only hostnetwork specified
+	networkSpec := cephv1.NetworkSpec{HostNetwork: sc.Spec.HostNetwork}
+
+	// full NetworkSpec specified
+	if sc.Spec.Network != nil {
+		networkSpec = *sc.Spec.Network
+		// both specified
+		if sc.Spec.HostNetwork {
+			networkSpec.HostNetwork = true
+		}
+	}
+	return networkSpec
 }
 
 func newExternalCephCluster(sc *ocsv1.StorageCluster, cephImage, monitoringIP, monitoringPort string) *cephv1.CephCluster {
